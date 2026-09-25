@@ -1,0 +1,1702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WMS Inventory</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Phosphor Icons for warehouse glyphs -->
+  <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+  <!-- Tone.js for warehouse audio cues -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+              800: '#1e40af',
+            },
+            surface: {
+              main: '#f8fafc',      /* Soft light background */
+              card: '#ffffff',      /* Pure white card */
+              subtle: '#f1f5f9',    /* Light slate background */
+              border: '#e2e8f0',    /* Clean subtle border */
+              borderHover: '#cbd5e1'
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+            mono: ['JetBrains Mono', 'ui-monospace', 'Menlo', 'monospace']
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Clean custom scrollbar for light theme */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+    input[type=number]::-webkit-inner-spin-button, 
+    input[type=number]::-webkit-outer-spin-button { 
+      -webkit-appearance: none; 
+      margin: 0; 
+    }
+    /* Subtle smooth focus transitions */
+    input, select, textarea, button {
+      transition: all 0.15s ease-in-out;
+    }
+  </style>
+</head>
+
+<body class="bg-surface-main text-slate-800 flex h-screen w-screen overflow-hidden select-none font-sans antialiased">
+
+  <!-- ==================== GLOBAL PACK DATALIST ==================== -->
+  <!-- Supports 101 to 106 presets while allowing manual entry -->
+  <datalist id="pack-options-preset">
+    <option value="101">101 - Standard Pack</option>
+    <option value="102">102 - Medium Pack</option>
+    <option value="103">103 - Large Pack</option>
+    <option value="104">104 - Heavy Pack</option>
+    <option value="105">105 - Carton Pack</option>
+    <option value="106">106 - Pallet Pack</option>
+  </datalist>
+
+  <!-- ==================== LEFT SIDEBAR ==================== -->
+  <aside class="w-64 md:w-72 bg-white border-r border-surface-border flex flex-col justify-between shrink-0 h-full shadow-[2px_0_12px_rgba(0,0,0,0.03)] z-20">
+    <div>
+      <!-- Brand Title Area -->
+      <div class="px-6 pt-7 pb-6 border-b border-surface-border">
+        <div class="inline-flex items-center gap-2">
+          <span class="text-[11px] font-extrabold tracking-widest text-brand-600 uppercase bg-blue-50 px-2 py-0.5 rounded border border-blue-100">WMS</span>
+          <span class="text-xs font-semibold text-slate-400">Warehouse Suite</span>
+        </div>
+        <h1 class="text-2xl font-bold text-slate-900 tracking-tight mt-1">Inventory</h1>
+      </div>
+
+      <!-- Navigation Links -->
+      <nav class="px-3 py-5 space-y-6 overflow-y-auto max-h-[calc(100vh-190px)]">
+        <!-- Operations Group -->
+        <div>
+          <h2 class="px-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">OPERATIONS</h2>
+          <div class="space-y-1">
+            <button id="nav-putaway" onclick="switchView('putaway')" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all text-white bg-brand-600 shadow-sm shadow-blue-500/30">
+              <i class="ph ph-arrow-up text-lg"></i>
+              <span>Put Away</span>
+            </button>
+            <button id="nav-picking" onclick="switchView('picking')" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all">
+              <i class="ph ph-arrow-down text-lg text-slate-500"></i>
+              <span>Picking</span>
+            </button>
+            <button id="nav-cyclecount" onclick="switchView('cyclecount')" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all">
+              <i class="ph ph-shuffle text-lg text-slate-500"></i>
+              <span>Cycle Count</span>
+            </button>
+            <button id="nav-correction" onclick="switchView('correction')" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all">
+              <i class="ph ph-note-pencil text-lg text-slate-500"></i>
+              <span>Correction</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Reports Group -->
+        <div>
+          <h2 class="px-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">REPORTS</h2>
+          <div class="space-y-1">
+            <button id="nav-stockview" onclick="switchView('stockview')" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all">
+              <i class="ph ph-desktop text-lg text-slate-500"></i>
+              <span>Stock View</span>
+            </button>
+            <button id="nav-movementlog" onclick="switchView('movementlog')" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all">
+              <i class="ph ph-clock-counter-clockwise text-lg text-slate-500"></i>
+              <span>Movement Log</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Master Group -->
+        <div>
+          <h2 class="px-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">MASTER</h2>
+          <div class="space-y-1">
+            <button id="nav-skumaster" onclick="switchView('skumaster')" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all">
+              <i class="ph ph-barcode text-lg text-slate-500"></i>
+              <span>SKU Master</span>
+            </button>
+          </div>
+        </div>
+      </nav>
+    </div>
+
+    <!-- Sidebar Bottom Status -->
+    <div class="p-4 border-t border-surface-border bg-slate-50/70 flex flex-col gap-1.5">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2 cursor-pointer" onclick="toggleOnlineOffline()" title="Click to toggle Online/Offline">
+          <span id="status-indicator-dot" class="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]"></span>
+          <span id="status-indicator-text" class="text-xs font-semibold text-slate-700">Online</span>
+        </div>
+        <span class="text-[10px] text-slate-400 uppercase font-mono">v2.4 Light</span>
+      </div>
+      <span class="text-[11px] text-slate-500 font-mono truncate">Scanner / Device Ready</span>
+    </div>
+  </aside>
+
+  <!-- ==================== MAIN CONTENT ==================== -->
+  <main class="flex-1 flex flex-col h-full overflow-hidden bg-surface-main">
+    <!-- Top Action Header -->
+    <header class="h-20 px-8 flex items-center justify-between border-b border-surface-border bg-white shadow-[0_1px_3px_rgba(0,0,0,0.02)] shrink-0">
+      <div>
+        <h2 id="page-title" class="text-xl font-bold text-slate-900 tracking-tight">Put Away</h2>
+        <p id="page-subtitle" class="text-xs text-slate-500 mt-0.5">Add stock to bin location</p>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="flex items-center gap-3">
+        <button onclick="exportStockCSV()" class="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold bg-white hover:bg-slate-50 border border-surface-border text-slate-700 transition-all shadow-sm active:scale-95">
+          <i class="ph ph-download-simple text-sm text-slate-500"></i>
+          <span>Export Stock</span>
+        </button>
+        <button onclick="exportLogCSV()" class="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold bg-brand-600 hover:bg-brand-700 text-white transition-all shadow-sm shadow-blue-500/20 active:scale-95">
+          <i class="ph ph-download-simple text-sm"></i>
+          <span>Export Log</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Content Workspace -->
+    <div class="flex-1 overflow-y-auto p-6 md:p-8">
+
+      <!-- ================= 1. PUT AWAY VIEW ================= -->
+      <section id="view-putaway" class="view-panel max-w-5xl">
+        <div class="bg-white border border-surface-border rounded-xl p-8 shadow-sm">
+          <div class="flex items-center justify-between pb-5 border-b border-slate-100 mb-6">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">PUT AWAY ENTRY</h3>
+            <span class="text-xs text-slate-400 bg-slate-100 px-2.5 py-1 rounded-md font-medium">Step: Inbound to Bin</span>
+          </div>
+
+          <form id="form-putaway" onsubmit="submitPutAway(event)" class="space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <!-- Search SKU -->
+              <div class="relative">
+                <label class="block text-xs font-semibold text-slate-700 mb-2">Search SKU</label>
+                <div class="relative">
+                  <input 
+                    type="text" 
+                    id="pa-sku-input"
+                    autocomplete="off"
+                    placeholder="Type or scan SKU..." 
+                    class="w-full bg-slate-50 border border-surface-border focus:border-brand-500 focus:bg-white rounded-lg pl-4 pr-10 py-3 text-sm text-slate-900 placeholder-slate-400 outline-none uppercase font-semibold"
+                    oninput="handleSkuAutocomplete('pa')"
+                    onfocus="showSkuList('pa')"
+                    required
+                  />
+                  <i class="ph ph-magnifying-glass absolute right-3.5 top-3.5 text-slate-400 text-base pointer-events-none"></i>
+                </div>
+                <div id="pa-sku-dropdown" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-surface-border rounded-lg shadow-xl max-h-52 overflow-y-auto z-40 divide-y divide-slate-100"></div>
+              </div>
+
+              <!-- Pack Input + Dropdown (101 to 106 + manual entry) -->
+              <div>
+                <div class="flex items-center justify-between mb-2">
+                  <label class="block text-xs font-semibold text-slate-700">Pack</label>
+                  <span class="text-[11px] text-brand-600 font-medium">Preset (101-106) or Type custom</span>
+                </div>
+                <div class="flex gap-2">
+                  <!-- Custom editable input with datalist -->
+                  <input 
+                    type="text" 
+                    id="pa-pack-input"
+                    list="pack-options-preset"
+                    placeholder="Select or enter pack (e.g. 101)" 
+                    class="w-full bg-slate-50 border border-surface-border focus:border-brand-500 focus:bg-white rounded-lg px-4 py-3 text-sm text-slate-900 placeholder-slate-400 outline-none uppercase font-mono font-medium"
+                    required
+                  />
+                  <!-- Quick preset selector helper -->
+                  <select onchange="applyQuickPack('pa-pack-input', this.value)" class="bg-slate-100 border border-surface-border text-xs text-slate-700 rounded-lg px-3 py-3 font-mono cursor-pointer hover:bg-slate-200 outline-none shrink-0">
+                    <option value="" disabled selected>Presets</option>
+                    <option value="101">101</option>
+                    <option value="102">102</option>
+                    <option value="103">103</option>
+                    <option value="104">104</option>
+                    <option value="105">105</option>
+                    <option value="106">106</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Scan / Enter Bin -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-2">Scan / Enter Bin</label>
+                <div class="relative">
+                  <input 
+                    type="text" 
+                    id="pa-bin-input"
+                    placeholder="e.g. A-01-01" 
+                    class="w-full bg-slate-50 border border-surface-border focus:border-brand-500 focus:bg-white rounded-lg pl-4 pr-10 py-3 text-sm text-slate-900 placeholder-slate-400 outline-none uppercase font-mono font-medium"
+                    required
+                  />
+                  <i class="ph ph-qr-code absolute right-3.5 top-3.5 text-slate-400 text-base pointer-events-none"></i>
+                </div>
+              </div>
+
+              <!-- Quantity -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-2">Quantity</label>
+                <input 
+                  type="number" 
+                  id="pa-qty-input"
+                  placeholder="0" 
+                  min="1"
+                  class="w-full bg-slate-50 border border-surface-border focus:border-brand-500 focus:bg-white rounded-lg px-4 py-3 text-sm text-slate-900 placeholder-slate-400 outline-none font-mono font-semibold"
+                  required
+                />
+              </div>
+            </div>
+
+            <!-- Confirm Put Away Button -->
+            <button 
+              type="submit" 
+              class="w-full mt-4 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3.5 rounded-lg flex items-center justify-center gap-2 transition-all shadow-md shadow-emerald-600/20 active:scale-[0.99]"
+            >
+              <i class="ph ph-check text-lg"></i>
+              <span>Confirm Put Away</span>
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <!-- ================= 2. PICKING VIEW ================= -->
+      <section id="view-picking" class="view-panel max-w-5xl hidden">
+        <div class="bg-white border border-surface-border rounded-xl p-8 shadow-sm">
+          <div class="flex items-center justify-between pb-5 border-b border-slate-100 mb-6">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">PICKING</h3>
+            <span class="text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-md font-medium">Outbound Fulfillment</span>
+          </div>
+
+          <form id="form-picking" onsubmit="submitPicking(event)" class="space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <!-- Search SKU -->
+              <div class="relative">
+                <label class="block text-xs font-semibold text-slate-700 mb-2">Search SKU</label>
+                <input 
+                  type="text" 
+                  id="pick-sku-input"
+                  autocomplete="off"
+                  placeholder="Type or scan SKU..." 
+                  class="w-full bg-slate-50 border border-surface-border focus:border-brand-500 focus:bg-white rounded-lg px-4 py-3 text-sm text-slate-900 placeholder-slate-400 outline-none uppercase font-semibold"
+                  oninput="handleSkuAutocomplete('pick')"
+                  onfocus="showSkuList('pick')"
+                  required
+                />
+                <div id="pick-sku-dropdown" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-surface-border rounded-lg shadow-xl max-h-52 overflow-y-auto z-40 divide-y divide-slate-100"></div>
+              </div>
+
+              <!-- Pack: Combobox (101 to 106 + manual) -->
+              <div>
+                <div class="flex items-center justify-between mb-2">
+                  <label class="block text-xs font-semibold text-slate-700">Pack</label>
+                  <span class="text-[11px] text-amber-600 font-medium">Select 101-106 or Type</span>
+                </div>
+                <div class="flex gap-2">
+                  <input 
+                    type="text" 
+                    id="pick-pack-input"
+                    list="pack-options-preset"
+                    placeholder="e.g. 101" 
+                    oninput="updateAvailablePickingBins()"
+                    class="w-full bg-slate-50 border border-surface-border focus:border-brand-500 focus:bg-white rounded-lg px-4 py-3 text-sm text-slate-900 placeholder-slate-400 outline-none uppercase font-mono font-medium"
+                    required
+                  />
+                  <select onchange="applyQuickPack('pick-pack-input', this.value); updateAvailablePickingBins();" class="bg-slate-100 border border-surface-border text-xs text-slate-700 rounded-lg px-3 py-3 font-mono cursor-pointer hover:bg-slate-200 outline-none shrink-0">
+                    <option value="" disabled selected>Presets</option>
+                    <option value="101">101</option>
+                    <option value="102">102</option>
+                    <option value="103">103</option>
+                    <option value="104">104</option>
+                    <option value="105">105</option>
+                    <option value="106">106</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Scan / Enter Bin -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-2">Scan / Enter Bin</label>
+                <input 
+                  type="text" 
+                  id="pick-bin-input"
+                  placeholder="e.g. A-01-01" 
+                  class="w-full bg-slate-50 border border-surface-border focus:border-brand-500 focus:bg-white rounded-lg px-4 py-3 text-sm text-slate-900 placeholder-slate-400 outline-none uppercase font-mono font-medium"
+                  oninput="validatePickBinStock()"
+                  required
+                />
+                <span id="pick-bin-stock-info" class="text-[11px] text-slate-500 mt-1.5 block"></span>
+              </div>
+
+              <!-- Quantity to Pick -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-2">Quantity to Pick</label>
+                <input 
+                  type="number" 
+                  id="pick-qty-input"
+                  placeholder="0" 
+                  min="1"
+                  class="w-full bg-slate-50 border border-surface-border focus:border-brand-500 focus:bg-white rounded-lg px-4 py-3 text-sm text-slate-900 placeholder-slate-400 outline-none font-mono font-semibold"
+                  required
+                />
+              </div>
+            </div>
+
+            <!-- Pick Commit Button -->
+            <button 
+              type="submit" 
+              class="w-full mt-4 bg-amber-600 hover:bg-amber-700 text-white font-semibold py-3.5 rounded-lg flex items-center justify-center gap-2 transition-all shadow-md shadow-amber-600/20 active:scale-[0.99]"
+            >
+              <i class="ph ph-check text-lg"></i>
+              <span>Confirm Pick</span>
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <!-- ================= 3. CYCLE COUNT VIEW ================= -->
+      <section id="view-cyclecount" class="view-panel max-w-5xl hidden">
+        <div class="bg-white border border-surface-border rounded-xl p-8 shadow-sm">
+          <div class="flex items-center justify-between pb-5 border-b border-slate-100 mb-6">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">CYCLE COUNT RECONCILIATION</h3>
+            <span class="text-xs text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-md font-medium">Physical Stock Audit</span>
+          </div>
+
+          <form id="form-cyclecount" onsubmit="submitCycleCount(event)" class="space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <!-- Bin Location -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-2">Bin Location</label>
+                <input 
+                  type="text" 
+                  id="cc-bin-input"
+                  placeholder="e.g. A-01-01" 
+                  class="w-full bg-slate-50 border border-surface-border focus:border-brand-500 focus:bg-white rounded-lg px-4 py-3 text-sm text-slate-900 outline-none uppercase font-mono font-medium"
+                  oninput="handleCycleCountBinSelect()"
+                  required
+                />
+              </div>
+
+              <!-- SKU in Bin Selection -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-2">SKU in Bin</label>
+                <select 
+                  id="cc-sku-select"
+                  onchange="updateCycleExpected()"
+                  class="w-full bg-slate-50 border border-surface-border focus:border-brand-500 focus:bg-white rounded-lg px-4 py-3 text-sm text-slate-900 outline-none cursor-pointer"
+                  required
+                  disabled
+                >
+                  <option value="" disabled selected>— enter bin first —</option>
+                </select>
+              </div>
+
+              <!-- Expected Units -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-2">System Expected Quantity</label>
+                <input 
+                  type="text" 
+                  id="cc-expected-display"
+                  readonly 
+                  value="0"
+                  class="w-full bg-slate-100 border border-surface-border rounded-lg px-4 py-3 text-sm text-slate-500 font-mono font-semibold"
+                />
+              </div>
+
+              <!-- Physical Count -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-2">Physical Counted Quantity</label>
+                <input 
+                  type="number" 
+                  id="cc-counted-input"
+                  placeholder="0" 
+                  min="0"
+                  class="w-full bg-slate-50 border border-surface-border focus:border-brand-500 focus:bg-white rounded-lg px-4 py-3 text-sm text-slate-900 outline-none font-mono font-semibold"
+                  required
+                />
+              </div>
+            </div>
+
+            <button 
+              type="submit" 
+              class="w-full mt-4 bg-brand-600 hover:bg-brand-700 text-white font-semibold py-3.5 rounded-lg flex items-center justify-center gap-2 transition-all shadow-md shadow-brand-600/20 active:scale-[0.99]"
+            >
+              <i class="ph ph-check text-lg"></i>
+              <span>Confirm Count Verification</span>
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <!-- ================= 4. CORRECTION VIEW ================= -->
+      <section id="view-correction" class="view-panel max-w-5xl hidden">
+        <div class="bg-white border border-surface-border rounded-xl p-8 shadow-sm">
+          <div class="flex items-center justify-between pb-5 border-b border-slate-100 mb-6">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">MANUAL CORRECTION</h3>
+            <span class="text-xs text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-md font-medium">Adjustment & Scrap</span>
+          </div>
+
+          <form id="form-correction" onsubmit="submitCorrection(event)" class="space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <!-- Search SKU -->
+              <div class="relative">
+                <label class="block text-xs font-semibold text-slate-700 mb-2">Search SKU</label>
+                <input 
+                  type="text" 
+                  id="corr-sku-input"
+                  autocomplete="off"
+                  placeholder="Type SKU..." 
+                  class="w-full bg-slate-50 border border-surface-border focus:border-brand-500 focus:bg-white rounded-lg px-4 py-3 text-sm text-slate-900 placeholder-slate-400 outline-none uppercase font-semibold"
+                  oninput="handleSkuAutocomplete('corr')"
+                  onfocus="showSkuList('corr')"
+                  required
+                />
+                <div id="corr-sku-dropdown" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-surface-border rounded-lg shadow-xl max-h-52 overflow-y-auto z-40 divide-y divide-slate-100"></div>
+              </div>
+
+              <!-- Pack: Combobox (101 to 106 + manual) -->
+              <div>
+                <div class="flex items-center justify-between mb-2">
+                  <label class="block text-xs font-semibold text-slate-700">Pack</label>
+                  <span class="text-[11px] text-rose-600 font-medium">101-106 or Custom</span>
+                </div>
+                <div class="flex gap-2">
+                  <input 
+                    type="text" 
+                    id="corr-pack-input"
+                    list="pack-options-preset"
+                    placeholder="e.g. 101" 
+                    class="w-full bg-slate-50 border border-surface-border focus:border-brand-500 focus:bg-white rounded-lg px-4 py-3 text-sm text-slate-900 placeholder-slate-400 outline-none uppercase font-mono font-medium"
+                    required
+                  />
+                  <select onchange="applyQuickPack('corr-pack-input', this.value)" class="bg-slate-100 border border-surface-border text-xs text-slate-700 rounded-lg px-3 py-3 font-mono cursor-pointer hover:bg-slate-200 outline-none shrink-0">
+                    <option value="" disabled selected>Presets</option>
+                    <option value="101">101</option>
+                    <option value="102">102</option>
+                    <option value="103">103</option>
+                    <option value="104">104</option>
+                    <option value="105">105</option>
+                    <option value="106">106</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Bin Input -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-2">Bin Location</label>
+                <input 
+                  type="text" 
+                  id="corr-bin-input"
+                  placeholder="Bin location (e.g. A-01-01)" 
+                  class="w-full bg-slate-50 border border-surface-border focus:border-brand-500 focus:bg-white rounded-lg px-4 py-3 text-sm text-slate-900 placeholder-slate-400 outline-none uppercase font-mono font-medium"
+                  required
+                />
+              </div>
+
+              <!-- Correction Type -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-2">Correction type</label>
+                <select 
+                  id="corr-type-select"
+                  class="w-full bg-slate-50 border border-surface-border focus:border-brand-500 focus:bg-white rounded-lg px-4 py-3 text-sm text-slate-900 outline-none cursor-pointer font-medium"
+                  required
+                >
+                  <option value="SET">Set exact qty</option>
+                  <option value="ADD">Add (+)</option>
+                  <option value="DEDUCT">Deduct (-)</option>
+                </select>
+              </div>
+
+              <!-- Quantity Field -->
+              <div class="md:col-span-2">
+                <label class="block text-xs font-semibold text-slate-700 mb-2">Quantity</label>
+                <input 
+                  type="number" 
+                  id="corr-qty-input"
+                  placeholder="0" 
+                  min="0"
+                  class="w-full bg-slate-50 border border-surface-border focus:border-brand-500 focus:bg-white rounded-lg px-4 py-3 text-sm text-slate-900 placeholder-slate-400 outline-none font-mono font-semibold"
+                  required
+                />
+              </div>
+
+              <!-- Reason -->
+              <div class="md:col-span-2">
+                <label class="block text-xs font-semibold text-slate-700 mb-2">Reason</label>
+                <input 
+                  type="text" 
+                  id="corr-reason-input"
+                  placeholder="e.g. damaged, miscounted, supplier discrepancy..." 
+                  class="w-full bg-slate-50 border border-surface-border focus:border-brand-500 focus:bg-white rounded-lg px-4 py-3 text-sm text-slate-900 placeholder-slate-400 outline-none"
+                  required
+                />
+              </div>
+            </div>
+
+            <!-- Correction Commit Button -->
+            <button 
+              type="submit" 
+              class="w-full mt-4 bg-rose-600 hover:bg-rose-700 text-white font-semibold py-3.5 rounded-lg flex items-center justify-center gap-2 transition-all shadow-md shadow-rose-600/20 active:scale-[0.99]"
+            >
+              <i class="ph ph-check text-lg"></i>
+              <span>Apply Correction</span>
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <!-- ================= 5. STOCK VIEW ================= -->
+      <section id="view-stockview" class="view-panel max-w-6xl hidden space-y-6">
+        <!-- 4 Metric Cards in Clean Light UI -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <!-- Total SKUs -->
+          <div class="bg-white border border-surface-border rounded-xl p-5 shadow-sm flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-3">
+              <span class="w-8 h-1 rounded bg-blue-500"></span>
+              <i class="ph ph-barcode text-slate-400 text-lg"></i>
+            </div>
+            <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">TOTAL SKUS</div>
+            <div id="metric-total-skus" class="text-2xl font-extrabold text-slate-900 font-mono mt-1">0</div>
+          </div>
+
+          <!-- Total Units -->
+          <div class="bg-white border border-surface-border rounded-xl p-5 shadow-sm flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-3">
+              <span class="w-8 h-1 rounded bg-emerald-500"></span>
+              <i class="ph ph-package text-slate-400 text-lg"></i>
+            </div>
+            <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">TOTAL UNITS</div>
+            <div id="metric-total-units" class="text-2xl font-extrabold text-slate-900 font-mono mt-1">0</div>
+          </div>
+
+          <!-- Bins Used -->
+          <div class="bg-white border border-surface-border rounded-xl p-5 shadow-sm flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-3">
+              <span class="w-8 h-1 rounded bg-amber-500"></span>
+              <i class="ph ph-map-pin text-slate-400 text-lg"></i>
+            </div>
+            <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">BINS USED</div>
+            <div id="metric-bins-used" class="text-2xl font-extrabold text-slate-900 font-mono mt-1">0</div>
+          </div>
+
+          <!-- Movements -->
+          <div class="bg-white border border-surface-border rounded-xl p-5 shadow-sm flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-3">
+              <span class="w-8 h-1 rounded bg-purple-500"></span>
+              <i class="ph ph-arrows-left-right text-slate-400 text-lg"></i>
+            </div>
+            <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">MOVEMENTS</div>
+            <div id="metric-movements" class="text-2xl font-extrabold text-slate-900 font-mono mt-1">0</div>
+          </div>
+        </div>
+
+        <!-- Stock Levels Table Card -->
+        <div class="bg-white border border-surface-border rounded-xl shadow-sm overflow-hidden">
+          <div class="p-6 border-b border-surface-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h3 class="text-sm font-bold uppercase tracking-wider text-slate-900">STOCK LEVELS</h3>
+              <p class="text-xs text-slate-400">Current warehouse inventory distributed by bin and pack code</p>
+            </div>
+            <button onclick="exportStockCSV()" class="flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700">
+              <i class="ph ph-download-simple"></i>
+              <span>Export CSV</span>
+            </button>
+          </div>
+
+          <!-- Filters Row -->
+          <div class="p-6 pb-4 grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50/50">
+            <div class="relative">
+              <input 
+                type="text" 
+                id="sv-filter-sku"
+                placeholder="Filter SKU..." 
+                oninput="renderStockTable()"
+                class="w-full bg-white border border-surface-border focus:border-brand-500 rounded-lg pl-9 pr-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 outline-none uppercase font-mono"
+              />
+              <i class="ph ph-magnifying-glass absolute left-3 top-3 text-slate-400 text-sm"></i>
+            </div>
+            <div class="relative">
+              <input 
+                type="text" 
+                id="sv-filter-bin"
+                placeholder="Filter bin..." 
+                oninput="renderStockTable()"
+                class="w-full bg-white border border-surface-border focus:border-brand-500 rounded-lg pl-9 pr-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 outline-none uppercase font-mono"
+              />
+              <i class="ph ph-funnel absolute left-3 top-3 text-slate-400 text-sm"></i>
+            </div>
+          </div>
+
+          <!-- Stock Table -->
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr class="border-y border-surface-border bg-slate-100/80 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
+                  <th class="py-3.5 px-6">SKU</th>
+                  <th class="py-3.5 px-6">PACK</th>
+                  <th class="py-3.5 px-6">BIN</th>
+                  <th class="py-3.5 px-6 text-right">QTY</th>
+                  <th class="py-3.5 px-6 text-right">ACTIONS</th>
+                </tr>
+              </thead>
+              <tbody id="stock-table-body" class="divide-y divide-surface-border text-slate-700 font-mono">
+                <!-- Injected via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 6. MOVEMENT LOG VIEW ================= -->
+      <section id="view-movementlog" class="view-panel max-w-6xl hidden">
+        <div class="bg-white border border-surface-border rounded-xl shadow-sm overflow-hidden">
+          <div class="p-6 border-b border-surface-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h3 class="text-sm font-bold uppercase tracking-wider text-slate-900">MOVEMENT LOG</h3>
+              <p class="text-xs text-slate-400">Complete historical record of put-aways, picks, counts, and corrections</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button onclick="clearLogFilters()" class="px-3.5 py-2 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300">
+                Clear filter
+              </button>
+              <button onclick="exportLogCSV()" class="flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold bg-brand-600 hover:bg-brand-700 text-white">
+                <i class="ph ph-download-simple"></i>
+                <span>Export CSV</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Filter Controls -->
+          <div class="p-6 pb-4 grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50/50">
+            <input 
+              type="text" 
+              id="ml-filter-sku"
+              placeholder="Filter SKU..." 
+              oninput="renderMovementLogTable()"
+              class="w-full bg-white border border-surface-border focus:border-brand-500 rounded-lg px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 outline-none uppercase font-mono"
+            />
+            <select 
+              id="ml-filter-type"
+              onchange="renderMovementLogTable()"
+              class="w-full bg-white border border-surface-border focus:border-brand-500 rounded-lg px-4 py-2.5 text-xs text-slate-800 outline-none cursor-pointer"
+            >
+              <option value="ALL">All movement types</option>
+              <option value="PUT_AWAY">PUT_AWAY</option>
+              <option value="PICK">PICK</option>
+              <option value="CORRECTION">CORRECTION</option>
+              <option value="CYCLE_COUNT">CYCLE_COUNT</option>
+            </select>
+            <input 
+              type="date" 
+              id="ml-filter-date"
+              onchange="renderMovementLogTable()"
+              class="w-full bg-white border border-surface-border focus:border-brand-500 rounded-lg px-4 py-2.5 text-xs text-slate-800 outline-none"
+            />
+          </div>
+
+          <!-- Movement Table -->
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr class="border-y border-surface-border bg-slate-100/80 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
+                  <th class="py-3.5 px-6">DATE</th>
+                  <th class="py-3.5 px-6">TIME</th>
+                  <th class="py-3.5 px-6">TYPE</th>
+                  <th class="py-3.5 px-6">SKU</th>
+                  <th class="py-3.5 px-6">PACK</th>
+                  <th class="py-3.5 px-6">BIN</th>
+                  <th class="py-3.5 px-6 text-right">QTY</th>
+                  <th class="py-3.5 px-6">NOTE</th>
+                </tr>
+              </thead>
+              <tbody id="movement-table-body" class="divide-y divide-surface-border text-slate-700 font-mono">
+                <!-- Injected via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 7. SKU MASTER VIEW ================= -->
+      <section id="view-skumaster" class="view-panel max-w-5xl hidden space-y-6">
+        <!-- Add New SKU -->
+        <div class="bg-white border border-surface-border rounded-xl p-8 shadow-sm">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-6">ADD NEW SKU</h3>
+          <form id="form-sku-single" onsubmit="handleSingleSkuSave(event)" class="space-y-5">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-2">SKU Code</label>
+              <input 
+                type="text" 
+                id="master-sku-code"
+                placeholder="E.G. AB99" 
+                class="w-full bg-slate-50 border border-surface-border focus:border-brand-500 focus:bg-white rounded-lg px-4 py-3 text-sm text-slate-900 uppercase outline-none font-mono font-bold"
+                required
+              />
+            </div>
+
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <label class="block text-xs font-semibold text-slate-700">Pack values (pick 101-106 or add custom)</label>
+                <div class="flex gap-1">
+                  <!-- Quick Pack Preset Injector Buttons -->
+                  <button type="button" onclick="addCustomChip('101')" class="px-2 py-0.5 text-[10px] font-mono bg-slate-100 hover:bg-slate-200 text-slate-700 rounded border border-slate-200">+101</button>
+                  <button type="button" onclick="addCustomChip('102')" class="px-2 py-0.5 text-[10px] font-mono bg-slate-100 hover:bg-slate-200 text-slate-700 rounded border border-slate-200">+102</button>
+                  <button type="button" onclick="addCustomChip('103')" class="px-2 py-0.5 text-[10px] font-mono bg-slate-100 hover:bg-slate-200 text-slate-700 rounded border border-slate-200">+103</button>
+                  <button type="button" onclick="addCustomChip('104')" class="px-2 py-0.5 text-[10px] font-mono bg-slate-100 hover:bg-slate-200 text-slate-700 rounded border border-slate-200">+104</button>
+                  <button type="button" onclick="addCustomChip('105')" class="px-2 py-0.5 text-[10px] font-mono bg-slate-100 hover:bg-slate-200 text-slate-700 rounded border border-slate-200">+105</button>
+                  <button type="button" onclick="addCustomChip('106')" class="px-2 py-0.5 text-[10px] font-mono bg-slate-100 hover:bg-slate-200 text-slate-700 rounded border border-slate-200">+106</button>
+                </div>
+              </div>
+
+              <div class="flex gap-2">
+                <input 
+                  type="text" 
+                  id="master-pack-input"
+                  list="pack-options-preset"
+                  placeholder="e.g. 101 or custom name" 
+                  class="flex-1 bg-slate-50 border border-surface-border focus:border-brand-500 focus:bg-white rounded-lg px-4 py-3 text-sm text-slate-900 outline-none font-mono"
+                />
+                <button 
+                  type="button" 
+                  onclick="addPackChipFromInput()"
+                  class="px-5 py-3 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1 shrink-0"
+                >
+                  <i class="ph ph-plus font-bold"></i> Add Pack
+                </button>
+              </div>
+
+              <!-- Active Pack Chips Container -->
+              <div id="master-pack-chips" class="flex flex-wrap gap-2 mt-3"></div>
+            </div>
+
+            <button 
+              type="submit" 
+              class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3.5 rounded-lg flex items-center justify-center gap-2 text-xs transition-all shadow-md shadow-emerald-600/20 active:scale-[0.99]"
+            >
+              <i class="ph ph-check text-base"></i>
+              <span>Save SKU</span>
+            </button>
+          </form>
+        </div>
+
+        <!-- Bulk Add Card -->
+        <div class="bg-white border border-surface-border rounded-xl p-8 shadow-sm">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">BULK ADD SKUS & PACKS</h3>
+
+          <!-- Sub Tabs -->
+          <div class="grid grid-cols-2 rounded-lg bg-slate-100 p-1 mb-4 text-xs font-semibold">
+            <button id="tab-btn-paste" onclick="switchBulkMode('paste')" class="py-2 rounded-md text-slate-800 bg-white shadow-sm transition-all">Paste Text</button>
+            <button id="tab-btn-upload" onclick="switchBulkMode('upload')" class="py-2 rounded-md text-slate-500 hover:text-slate-800 transition-all">Upload File</button>
+          </div>
+
+          <div id="bulk-paste-section" class="space-y-4">
+            <label class="block text-xs font-medium text-slate-500">Paste SKU and Pack (tab or comma separated, one per line)</label>
+            <textarea 
+              id="bulk-text-input" 
+              rows="6"
+              placeholder="ES13&#9;101&#10;FE41&#9;102&#10;AB07&#9;103&#10;&#10;or comma separated:&#10;ES13,101&#10;FE41,104" 
+              class="w-full bg-slate-50 border border-surface-border focus:border-brand-500 focus:bg-white rounded-lg p-4 font-mono text-xs text-slate-800 outline-none leading-relaxed"
+            ></textarea>
+            <div class="flex items-center gap-3">
+              <button type="button" onclick="previewBulkUpload()" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-xs font-semibold">Preview</button>
+              <button type="button" id="btn-bulk-commit" onclick="commitBulkUpload()" class="px-4 py-2 bg-slate-200 text-slate-400 rounded-lg text-xs font-semibold cursor-not-allowed" disabled>Upload to Database</button>
+              <button type="button" onclick="clearBulkText()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 rounded-lg text-xs font-semibold">Clear</button>
+            </div>
+            <div id="bulk-preview-area" class="hidden mt-3 p-3 bg-slate-50 rounded-lg border border-surface-border text-xs text-slate-700 max-h-36 overflow-y-auto font-mono"></div>
+          </div>
+
+          <div id="bulk-upload-section" class="hidden py-8 text-center border-2 border-dashed border-surface-border rounded-lg bg-slate-50/50">
+            <i class="ph ph-upload-simple text-3xl text-slate-400 mb-2 inline-block"></i>
+            <p class="text-xs text-slate-600 mb-3">Upload CSV or TXT file with SKU,PACK lines</p>
+            <label class="inline-block cursor-pointer px-4 py-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold">
+              Select File
+              <input type="file" id="bulk-file-input" accept=".csv,.txt" class="hidden" onchange="handleFileUpload(event)">
+            </label>
+          </div>
+        </div>
+
+        <!-- Master SKUs Table -->
+        <div class="bg-white border border-surface-border rounded-xl shadow-sm overflow-hidden">
+          <div class="p-6 border-b border-surface-border flex items-center justify-between">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">REGISTERED MASTER SKUS</h3>
+            <span id="all-skus-count" class="text-xs font-mono font-bold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-md">0 SKUs</span>
+          </div>
+
+          <div class="p-6 pb-4 bg-slate-50/50">
+            <input 
+              type="text" 
+              id="sku-table-search"
+              placeholder="Search SKU..." 
+              oninput="renderMasterSkuTable()"
+              class="w-full bg-white border border-surface-border focus:border-brand-500 rounded-lg px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 outline-none uppercase font-mono"
+            />
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr class="border-y border-surface-border bg-slate-100/80 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
+                  <th class="py-3.5 px-6">SKU</th>
+                  <th class="py-3.5 px-6">CONFIGURED PACKS</th>
+                  <th class="py-3.5 px-6 text-right">ACTIONS</th>
+                </tr>
+              </thead>
+              <tbody id="master-skus-tbody" class="divide-y divide-surface-border text-slate-700 font-mono">
+                <!-- Injected via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- Toast Notification Wrapper -->
+  <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- ==================== JAVASCRIPT SYSTEM CONTROLLER ==================== -->
+  <script>
+    // Initial starting datasets featuring packs 101 to 106
+    const DEFAULT_MASTER_SKUS = [
+      { sku: 'ES13', packs: ['101', '102'] },
+      { sku: 'FE41', packs: ['101', '103', '106'] },
+      { sku: 'AB07', packs: ['101', '104'] },
+      { sku: 'BX90', packs: ['102', '105'] },
+      { sku: 'TP48', packs: ['101', '106'] }
+    ];
+
+    const DEFAULT_STOCK = [
+      { sku: 'ES13', pack: '101', bin: 'A-01-01', qty: 240 },
+      { sku: 'ES13', pack: '102', bin: 'A-01-02', qty: 80 },
+      { sku: 'FE41', pack: '101', bin: 'A-02-01', qty: 150 },
+      { sku: 'FE41', pack: '103', bin: 'A-02-02', qty: 45 },
+      { sku: 'AB07', pack: '101', bin: 'B-01-01', qty: 95 },
+      { sku: 'AB07', pack: '104', bin: 'B-01-02', qty: 30 },
+      { sku: 'BX90', pack: '105', bin: 'C-01-01', qty: 420 },
+      { sku: 'TP48', pack: '106', bin: 'D-03-02', qty: 180 }
+    ];
+
+    const DEFAULT_LOGS = [
+      { date: '2026-09-24', time: '14:22', type: 'PUT_AWAY', sku: 'ES13', pack: '101', bin: 'A-01-01', qty: '+240', note: 'Inbound Pallet' },
+      { date: '2026-09-24', time: '15:10', type: 'PUT_AWAY', sku: 'FE41', pack: '103', bin: 'A-02-02', qty: '+45', note: 'Returns Put Away' },
+      { date: '2026-09-24', time: '16:04', type: 'PICK', sku: 'ES13', pack: '101', bin: 'A-01-01', qty: '-20', note: 'Order #4928' }
+    ];
+
+    // Local Storage Hydration
+    let masterSkus = JSON.parse(localStorage.getItem('wms_light_skus')) || DEFAULT_MASTER_SKUS;
+    let stockData = JSON.parse(localStorage.getItem('wms_light_stock')) || DEFAULT_STOCK;
+    let movementLogs = JSON.parse(localStorage.getItem('wms_light_logs')) || DEFAULT_LOGS;
+    let isOnline = true;
+    let tempPackChips = ['101', '102'];
+    let pendingBulkParsed = [];
+
+    function persist() {
+      localStorage.setItem('wms_light_skus', JSON.stringify(masterSkus));
+      localStorage.setItem('wms_light_stock', JSON.stringify(stockData));
+      localStorage.setItem('wms_light_logs', JSON.stringify(movementLogs));
+      updateMetricCounters();
+    }
+
+    // Audio cue generator
+    function playBeep(type = 'success') {
+      try {
+        if (window.Tone) {
+          const synth = new Tone.Synth().toDestination();
+          synth.volume.value = -12;
+          if (type === 'success') {
+            synth.triggerAttackRelease("C5", "32n");
+            setTimeout(() => synth.triggerAttackRelease("G5", "32n"), 70);
+          } else if (type === 'error') {
+            synth.triggerAttackRelease("A3", "16n");
+          }
+        }
+      } catch (e) {}
+    }
+
+    // Crisp Light Toast
+    function showToast(msg, isSuccess = true) {
+      const c = document.getElementById('toast-container');
+      const t = document.createElement('div');
+      t.className = `flex items-center gap-2.5 px-4 py-3 rounded-lg border text-xs font-semibold shadow-lg pointer-events-auto transition-all transform duration-200 ${
+        isSuccess ? 'bg-white border-emerald-300 text-emerald-800' : 'bg-white border-rose-300 text-rose-800'
+      }`;
+      t.innerHTML = `<i class="ph ${isSuccess ? 'ph-check-circle text-emerald-600' : 'ph-warning-circle text-rose-600'} text-lg"></i><span>${msg}</span>`;
+      c.appendChild(t);
+      playBeep(isSuccess ? 'success' : 'error');
+
+      setTimeout(() => {
+        t.style.opacity = '0';
+        t.style.transform = 'translateY(6px)';
+        setTimeout(() => t.remove(), 250);
+      }, 3200);
+    }
+
+    // Online / Offline Switch
+    function toggleOnlineOffline() {
+      isOnline = !isOnline;
+      const dot = document.getElementById('status-indicator-dot');
+      const text = document.getElementById('status-indicator-text');
+      if (isOnline) {
+        dot.className = "w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]";
+        text.textContent = "Online";
+        showToast("Connected to central warehouse gateway");
+      } else {
+        dot.className = "w-2.5 h-2.5 rounded-full bg-rose-500 shadow-[0_0_8px_#f43f5e]";
+        text.textContent = "Offline";
+        showToast("Operating in Local Offline Cache mode", false);
+      }
+    }
+
+    // Helper to insert quick pack into input
+    function applyQuickPack(inputId, packValue) {
+      if (!packValue) return;
+      const el = document.getElementById(inputId);
+      if (el) {
+        el.value = packValue;
+        el.dispatchEvent(new Event('input'));
+      }
+    }
+
+    // Navigation Switcher
+    const VIEW_META = {
+      putaway: { title: 'Put Away', sub: 'Add stock to bin location' },
+      picking: { title: 'Picking', sub: 'Remove stock from bin location' },
+      cyclecount: { title: 'Cycle Count', sub: 'Physical audit and count reconciliation' },
+      correction: { title: 'Correction', sub: 'Manual inventory adjustment with reason' },
+      stockview: { title: 'Stock View', sub: 'Live stock levels across all bins' },
+      movementlog: { title: 'Movement Log', sub: 'Full date & time history of all movements' },
+      skumaster: { title: 'SKU Master', sub: 'Add, edit and delete SKUs and pack values' }
+    };
+
+    function switchView(tabKey) {
+      document.getElementById('page-title').textContent = VIEW_META[tabKey].title;
+      document.getElementById('page-subtitle').textContent = VIEW_META[tabKey].sub;
+
+      // Update Nav Buttons
+      document.querySelectorAll('.nav-item').forEach(b => {
+        b.className = 'nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all';
+        const icon = b.querySelector('i');
+        if (icon) icon.className = icon.className.replace('text-white', 'text-slate-500');
+      });
+
+      const activeBtn = document.getElementById(`nav-${tabKey}`);
+      if (activeBtn) {
+        activeBtn.className = 'nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all text-white bg-brand-600 shadow-sm shadow-blue-500/30';
+        const icon = activeBtn.querySelector('i');
+        if (icon) icon.className = icon.className.replace('text-slate-500', 'text-white');
+      }
+
+      // Toggle Panels
+      document.querySelectorAll('.view-panel').forEach(p => p.classList.add('hidden'));
+      const panel = document.getElementById(`view-${tabKey}`);
+      if (panel) panel.classList.remove('hidden');
+
+      if (tabKey === 'stockview') renderStockTable();
+      if (tabKey === 'movementlog') renderMovementLogTable();
+      if (tabKey === 'skumaster') {
+        renderPackChips();
+        renderMasterSkuTable();
+      }
+      updateMetricCounters();
+    }
+
+    // SKU Autocomplete
+    function handleSkuAutocomplete(prefix) {
+      const input = document.getElementById(`${prefix}-sku-input`);
+      const val = input.value.trim().toUpperCase();
+      const dropdown = document.getElementById(`${prefix}-sku-dropdown`);
+
+      const filtered = masterSkus.filter(m => m.sku.toUpperCase().includes(val));
+      if (!filtered.length) {
+        dropdown.innerHTML = `<div class="p-3 text-xs text-slate-400">No matching SKU found</div>`;
+      } else {
+        dropdown.innerHTML = filtered.map(item => `
+          <div onclick="selectSkuItem('${prefix}', '${item.sku}')" class="px-4 py-2.5 hover:bg-slate-50 cursor-pointer flex items-center justify-between text-xs">
+            <span class="font-mono font-bold text-brand-600">${item.sku}</span>
+            <span class="text-[11px] text-slate-500 font-mono bg-slate-100 px-2 py-0.5 rounded">${item.packs.join(', ')}</span>
+          </div>
+        `).join('');
+      }
+      dropdown.classList.remove('hidden');
+    }
+
+    function showSkuList(prefix) {
+      handleSkuAutocomplete(prefix);
+    }
+
+    function selectSkuItem(prefix, skuCode) {
+      const skuObj = masterSkus.find(m => m.sku === skuCode);
+      if (!skuObj) return;
+
+      document.getElementById(`${prefix}-sku-input`).value = skuObj.sku;
+      document.getElementById(`${prefix}-sku-dropdown`).classList.add('hidden');
+
+      // Autofill first pack into input if available
+      const packInput = document.getElementById(`${prefix}-pack-input`);
+      if (packInput && skuObj.packs.length > 0) {
+        packInput.value = skuObj.packs[0];
+      }
+
+      if (prefix === 'pick') updateAvailablePickingBins();
+    }
+
+    // Close dropdowns on outside click
+    document.addEventListener('click', (e) => {
+      ['pa', 'pick', 'corr'].forEach(prefix => {
+        const input = document.getElementById(`${prefix}-sku-input`);
+        const dropdown = document.getElementById(`${prefix}-sku-dropdown`);
+        if (input && dropdown && !input.contains(e.target) && !dropdown.contains(e.target)) {
+          dropdown.classList.add('hidden');
+        }
+      });
+    });
+
+    function getTimestamp() {
+      const d = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      return {
+        date: `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`,
+        time: `${pad(d.getHours())}:${pad(d.getMinutes())}`
+      };
+    }
+
+    // ==================== 1. PUT AWAY ====================
+    function submitPutAway(e) {
+      e.preventDefault();
+      const sku = document.getElementById('pa-sku-input').value.trim().toUpperCase();
+      const pack = document.getElementById('pa-pack-input').value.trim().toUpperCase();
+      const bin = document.getElementById('pa-bin-input').value.trim().toUpperCase();
+      const qty = parseInt(document.getElementById('pa-qty-input').value, 10);
+
+      if (!sku || !pack || !bin || isNaN(qty) || qty <= 0) {
+        showToast("Please provide valid SKU, Pack (101-106 or custom), Bin, and Quantity", false);
+        return;
+      }
+
+      // Add to Master SKU catalog if not existing
+      let masterEntry = masterSkus.find(m => m.sku === sku);
+      if (!masterEntry) {
+        masterSkus.push({ sku, packs: [pack] });
+      } else if (!masterEntry.packs.includes(pack)) {
+        masterEntry.packs.push(pack);
+      }
+
+      // Add to Stock
+      let record = stockData.find(s => s.sku === sku && s.pack === pack && s.bin === bin);
+      if (record) {
+        record.qty += qty;
+      } else {
+        stockData.push({ sku, pack, bin, qty });
+      }
+
+      // Add to Movement Log
+      const { date, time } = getTimestamp();
+      movementLogs.unshift({
+        date,
+        time,
+        type: 'PUT_AWAY',
+        sku,
+        pack,
+        bin,
+        qty: `+${qty}`,
+        note: 'Inbound Put Away'
+      });
+
+      persist();
+      showToast(`Put Away Success: +${qty} [${pack}] of ${sku} placed in ${bin}`);
+      document.getElementById('pa-qty-input').value = '';
+    }
+
+    // ==================== 2. PICKING ====================
+    function updateAvailablePickingBins() {
+      const sku = (document.getElementById('pick-sku-input').value || '').trim().toUpperCase();
+      const pack = (document.getElementById('pick-pack-input').value || '').trim().toUpperCase();
+      const info = document.getElementById('pick-bin-stock-info');
+
+      if (!sku) {
+        info.textContent = "";
+        return;
+      }
+
+      const matches = stockData.filter(s => s.sku === sku && (!pack || s.pack === pack) && s.qty > 0);
+      if (!matches.length) {
+        info.textContent = "No inventory found for this SKU & Pack combination.";
+        info.className = "text-[11px] text-amber-600 mt-1.5 block font-medium";
+      } else {
+        info.textContent = `Available Locations: ${matches.map(m => `${m.bin} (Pack ${m.pack}: ${m.qty})`).join(' | ')}`;
+        info.className = "text-[11px] text-emerald-600 mt-1.5 block font-medium";
+      }
+    }
+
+    function validatePickBinStock() {
+      const sku = (document.getElementById('pick-sku-input').value || '').trim().toUpperCase();
+      const pack = (document.getElementById('pick-pack-input').value || '').trim().toUpperCase();
+      const bin = (document.getElementById('pick-bin-input').value || '').trim().toUpperCase();
+      const info = document.getElementById('pick-bin-stock-info');
+
+      const record = stockData.find(s => s.sku === sku && s.pack === pack && s.bin === bin);
+      if (record) {
+        info.textContent = `Location ${bin} has ${record.qty} units ready for pick.`;
+        info.className = "text-[11px] text-emerald-600 mt-1.5 block font-semibold";
+      }
+    }
+
+    function submitPicking(e) {
+      e.preventDefault();
+      const sku = document.getElementById('pick-sku-input').value.trim().toUpperCase();
+      const pack = document.getElementById('pick-pack-input').value.trim().toUpperCase();
+      const bin = document.getElementById('pick-bin-input').value.trim().toUpperCase();
+      const qty = parseInt(document.getElementById('pick-qty-input').value, 10);
+
+      if (!sku || !pack || !bin || isNaN(qty) || qty <= 0) {
+        showToast("Please enter complete picking details", false);
+        return;
+      }
+
+      const record = stockData.find(s => s.sku === sku && s.pack === pack && s.bin === bin);
+      if (!record || record.qty < qty) {
+        showToast(`Stock shortage in ${bin}. Only ${record ? record.qty : 0} available!`, false);
+        return;
+      }
+
+      record.qty -= qty;
+      if (record.qty === 0) {
+        stockData = stockData.filter(s => s !== record);
+      }
+
+      const { date, time } = getTimestamp();
+      movementLogs.unshift({
+        date,
+        time,
+        type: 'PICK',
+        sku,
+        pack,
+        bin,
+        qty: `-${qty}`,
+        note: 'Order Pick Completed'
+      });
+
+      persist();
+      showToast(`Picked ${qty} [${pack}] of ${sku} from ${bin}`);
+      document.getElementById('pick-qty-input').value = '';
+      updateAvailablePickingBins();
+    }
+
+    // ==================== 3. CYCLE COUNT ====================
+    function handleCycleCountBinSelect() {
+      const bin = document.getElementById('cc-bin-input').value.trim().toUpperCase();
+      const itemsInBin = stockData.filter(s => s.bin === bin);
+      const skuSelect = document.getElementById('cc-sku-select');
+
+      if (!itemsInBin.length) {
+        skuSelect.disabled = true;
+        skuSelect.innerHTML = `<option value="" disabled selected>— No items found in bin —</option>`;
+        document.getElementById('cc-expected-display').value = '0';
+        return;
+      }
+
+      skuSelect.disabled = false;
+      skuSelect.innerHTML = `<option value="" disabled selected>— select SKU —</option>` +
+        itemsInBin.map(i => `<option value="${i.sku}||${i.pack}">${i.sku} (Pack: ${i.pack})</option>`).join('');
+    }
+
+    function updateCycleExpected() {
+      const val = document.getElementById('cc-sku-select').value;
+      const bin = document.getElementById('cc-bin-input').value.trim().toUpperCase();
+      if (!val) return;
+      const [sku, pack] = val.split('||');
+      const item = stockData.find(s => s.sku === sku && s.pack === pack && s.bin === bin);
+      document.getElementById('cc-expected-display').value = item ? item.qty : '0';
+    }
+
+    function submitCycleCount(e) {
+      e.preventDefault();
+      const bin = document.getElementById('cc-bin-input').value.trim().toUpperCase();
+      const selection = document.getElementById('cc-sku-select').value;
+      const counted = parseInt(document.getElementById('cc-counted-input').value, 10);
+
+      if (!bin || !selection || isNaN(counted) || counted < 0) {
+        showToast("Please specify bin, sku, and physical count", false);
+        return;
+      }
+
+      const [sku, pack] = selection.split('||');
+      const item = stockData.find(s => s.sku === sku && s.pack === pack && s.bin === bin);
+      const expected = item ? item.qty : 0;
+      const diff = counted - expected;
+
+      if (item) {
+        item.qty = counted;
+      } else {
+        stockData.push({ sku, pack, bin, qty: counted });
+      }
+
+      const { date, time } = getTimestamp();
+      movementLogs.unshift({
+        date,
+        time,
+        type: 'CYCLE_COUNT',
+        sku,
+        pack,
+        bin,
+        qty: diff >= 0 ? `+${diff}` : `${diff}`,
+        note: `Physical audit reconciled (${counted})`
+      });
+
+      persist();
+      showToast(`Cycle count saved for ${sku} [${pack}] in ${bin}`);
+      handleCycleCountBinSelect();
+    }
+
+    // ==================== 4. CORRECTION ====================
+    function submitCorrection(e) {
+      e.preventDefault();
+      const sku = document.getElementById('corr-sku-input').value.trim().toUpperCase();
+      const pack = document.getElementById('corr-pack-input').value.trim().toUpperCase();
+      const bin = document.getElementById('corr-bin-input').value.trim().toUpperCase();
+      const type = document.getElementById('corr-type-select').value;
+      const qty = parseInt(document.getElementById('corr-qty-input').value, 10);
+      const reason = document.getElementById('corr-reason-input').value.trim();
+
+      if (!sku || !pack || !bin || isNaN(qty) || !reason) {
+        showToast("Please provide all correction details", false);
+        return;
+      }
+
+      let record = stockData.find(s => s.sku === sku && s.pack === pack && s.bin === bin);
+      let qtyDelta = '';
+
+      if (type === 'SET') {
+        const oldQty = record ? record.qty : 0;
+        const delta = qty - oldQty;
+        qtyDelta = delta >= 0 ? `+${delta}` : `${delta}`;
+        if (record) {
+          record.qty = qty;
+        } else {
+          stockData.push({ sku, pack, bin, qty });
+        }
+      } else if (type === 'ADD') {
+        qtyDelta = `+${qty}`;
+        if (record) {
+          record.qty += qty;
+        } else {
+          stockData.push({ sku, pack, bin, qty });
+        }
+      } else if (type === 'DEDUCT') {
+        qtyDelta = `-${qty}`;
+        if (!record || record.qty < qty) {
+          showToast(`Cannot deduct ${qty}. Only ${record ? record.qty : 0} in bin.`, false);
+          return;
+        }
+        record.qty -= qty;
+        if (record.qty === 0) {
+          stockData = stockData.filter(s => s !== record);
+        }
+      }
+
+      const { date, time } = getTimestamp();
+      movementLogs.unshift({
+        date,
+        time,
+        type: 'CORRECTION',
+        sku,
+        pack,
+        bin,
+        qty: qtyDelta,
+        note: reason
+      });
+
+      persist();
+      showToast(`Correction logged: ${qtyDelta} for ${sku} [${pack}]`);
+      document.getElementById('corr-qty-input').value = '';
+      document.getElementById('corr-reason-input').value = '';
+    }
+
+    // ==================== 5. STOCK VIEW ====================
+    function updateMetricCounters() {
+      const uniqueSkus = new Set(stockData.map(s => s.sku)).size;
+      const totalUnits = stockData.reduce((acc, cur) => acc + (cur.qty || 0), 0);
+      const uniqueBins = new Set(stockData.map(s => s.bin)).size;
+      const movements = movementLogs.length;
+
+      document.getElementById('metric-total-skus').textContent = uniqueSkus;
+      document.getElementById('metric-total-units').textContent = totalUnits.toLocaleString();
+      document.getElementById('metric-bins-used').textContent = uniqueBins;
+      document.getElementById('metric-movements').textContent = movements;
+    }
+
+    function renderStockTable() {
+      const skuFilter = (document.getElementById('sv-filter-sku').value || '').trim().toUpperCase();
+      const binFilter = (document.getElementById('sv-filter-bin').value || '').trim().toUpperCase();
+      const tbody = document.getElementById('stock-table-body');
+
+      const filtered = stockData.filter(s => {
+        const matchSku = !skuFilter || s.sku.includes(skuFilter);
+        const matchBin = !binFilter || s.bin.includes(binFilter);
+        return matchSku && matchBin;
+      });
+
+      if (!filtered.length) {
+        tbody.innerHTML = `<tr><td colspan="5" class="py-10 text-center text-slate-400 font-sans text-xs">No active stock matches your filter criteria</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(item => `
+        <tr class="hover:bg-slate-50/80 transition-colors">
+          <td class="py-3.5 px-6 font-bold text-brand-700">${item.sku}</td>
+          <td class="py-3.5 px-6 font-semibold text-slate-800">
+            <span class="bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200">${item.pack}</span>
+          </td>
+          <td class="py-3.5 px-6 text-emerald-700 font-bold">${item.bin}</td>
+          <td class="py-3.5 px-6 text-right font-extrabold text-slate-900">${item.qty.toLocaleString()}</td>
+          <td class="py-3.5 px-6 text-right font-sans">
+            <button onclick="quickPickPrefill('${item.sku}', '${item.pack}', '${item.bin}')" class="text-xs text-brand-600 hover:text-brand-800 font-semibold px-2.5 py-1 rounded bg-blue-50 border border-blue-200">
+              Pick This
+            </button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function quickPickPrefill(sku, pack, bin) {
+      switchView('picking');
+      document.getElementById('pick-sku-input').value = sku;
+      document.getElementById('pick-pack-input').value = pack;
+      document.getElementById('pick-bin-input').value = bin;
+      validatePickBinStock();
+    }
+
+    // ==================== 6. MOVEMENT LOG ====================
+    function renderMovementLogTable() {
+      const skuQuery = (document.getElementById('ml-filter-sku').value || '').trim().toUpperCase();
+      const typeFilter = document.getElementById('ml-filter-type').value;
+      const dateFilter = document.getElementById('ml-filter-date').value;
+      const tbody = document.getElementById('movement-table-body');
+
+      const filtered = movementLogs.filter(log => {
+        const matchSku = !skuQuery || log.sku.includes(skuQuery);
+        const matchType = typeFilter === 'ALL' || log.type === typeFilter;
+        const matchDate = !dateFilter || log.date === dateFilter;
+        return matchSku && matchType && matchDate;
+      });
+
+      if (!filtered.length) {
+        tbody.innerHTML = `<tr><td colspan="8" class="py-10 text-center text-slate-400 font-sans text-xs">No movement history matches filter</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(log => {
+        const isMinus = log.qty.startsWith('-');
+        const color = isMinus ? 'text-rose-600 font-extrabold' : 'text-emerald-600 font-extrabold';
+
+        let typeBadge = '';
+        if (log.type === 'PUT_AWAY') {
+          typeBadge = '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">PUT AWAY</span>';
+        } else if (log.type === 'PICK') {
+          typeBadge = '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">PICK</span>';
+        } else if (log.type === 'CYCLE_COUNT') {
+          typeBadge = '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">CYCLE COUNT</span>';
+        } else {
+          typeBadge = '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200">CORRECTION</span>';
+        }
+
+        return `
+          <tr class="hover:bg-slate-50/80 transition-colors">
+            <td class="py-3.5 px-6 text-slate-500">${log.date}</td>
+            <td class="py-3.5 px-6 text-slate-500">${log.time}</td>
+            <td class="py-3.5 px-6">${typeBadge}</td>
+            <td class="py-3.5 px-6 font-bold text-brand-700">${log.sku}</td>
+            <td class="py-3.5 px-6"><span class="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200">${log.pack}</span></td>
+            <td class="py-3.5 px-6 text-slate-800 font-medium">${log.bin}</td>
+            <td class="py-3.5 px-6 text-right ${color}">${log.qty}</td>
+            <td class="py-3.5 px-6 text-slate-600 font-sans truncate max-w-xs">${log.note || '-'}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function clearLogFilters() {
+      document.getElementById('ml-filter-sku').value = '';
+      document.getElementById('ml-filter-type').value = 'ALL';
+      document.getElementById('ml-filter-date').value = '';
+      renderMovementLogTable();
+    }
+
+    // ==================== 7. SKU MASTER ====================
+    function addCustomChip(val) {
+      if (!val) return;
+      const clean = val.trim().toUpperCase();
+      if (!tempPackChips.includes(clean)) {
+        tempPackChips.push(clean);
+        renderPackChips();
+      }
+    }
+
+    function addPackChipFromInput() {
+      const input = document.getElementById('master-pack-input');
+      addCustomChip(input.value);
+      input.value = '';
+    }
+
+    function removePackChip(val) {
+      tempPackChips = tempPackChips.filter(c => c !== val);
+      renderPackChips();
+    }
+
+    function renderPackChips() {
+      const container = document.getElementById('master-pack-chips');
+      container.innerHTML = tempPackChips.map(c => `
+        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono bg-blue-50 border border-blue-200 text-brand-700 font-bold">
+          ${c}
+          <button type="button" onclick="removePackChip('${c}')" class="text-slate-400 hover:text-rose-600 ml-1 text-sm font-bold">&times;</button>
+        </span>
+      `).join('');
+    }
+
+    function handleSingleSkuSave(e) {
+      e.preventDefault();
+      const sku = document.getElementById('master-sku-code').value.trim().toUpperCase();
+      if (!sku) return;
+
+      if (!tempPackChips.length) {
+        showToast("Please add at least one Pack value (e.g. 101 or custom)", false);
+        return;
+      }
+
+      const existing = masterSkus.find(m => m.sku === sku);
+      if (existing) {
+        tempPackChips.forEach(p => {
+          if (!existing.packs.includes(p)) existing.packs.push(p);
+        });
+      } else {
+        masterSkus.push({ sku, packs: [...tempPackChips] });
+      }
+
+      persist();
+      showToast(`SKU ${sku} configured with packs: ${tempPackChips.join(', ')}`);
+      document.getElementById('master-sku-code').value = '';
+      tempPackChips = ['101', '102'];
+      renderPackChips();
+      renderMasterSkuTable();
+    }
+
+    function switchBulkMode(mode) {
+      const btnPaste = document.getElementById('tab-btn-paste');
+      const btnUpload = document.getElementById('tab-btn-upload');
+      const secPaste = document.getElementById('bulk-paste-section');
+      const secUpload = document.getElementById('bulk-upload-section');
+
+      if (mode === 'paste') {
+        btnPaste.className = 'py-2 rounded-md text-slate-800 bg-white shadow-sm transition-all';
+        btnUpload.className = 'py-2 rounded-md text-slate-500 hover:text-slate-800 transition-all';
+        secPaste.classList.remove('hidden');
+        secUpload.classList.add('hidden');
+      } else {
+        btnUpload.className = 'py-2 rounded-md text-slate-800 bg-white shadow-sm transition-all';
+        btnPaste.className = 'py-2 rounded-md text-slate-500 hover:text-slate-800 transition-all';
+        secUpload.classList.remove('hidden');
+        secPaste.classList.add('hidden');
+      }
+    }
+
+    function previewBulkUpload() {
+      const text = document.getElementById('bulk-text-input').value.trim();
+      const previewArea = document.getElementById('bulk-preview-area');
+      const commitBtn = document.getElementById('btn-bulk-commit');
+
+      if (!text) {
+        showToast("Paste text first to preview", false);
+        return;
+      }
+
+      const lines = text.split('\n');
+      pendingBulkParsed = [];
+
+      lines.forEach(line => {
+        const trimmed = line.trim();
+        if (!trimmed) return;
+        const parts = trimmed.split(/[\t,]| {2,}/).map(p => p.trim()).filter(Boolean);
+        if (parts.length >= 2) {
+          pendingBulkParsed.push({
+            sku: parts[0].toUpperCase(),
+            pack: parts[1].toUpperCase()
+          });
+        }
+      });
+
+      if (!pendingBulkParsed.length) {
+        previewArea.classList.remove('hidden');
+        previewArea.innerHTML = `<span class="text-rose-600 font-semibold">Format invalid. Provide: SKU,PACK or SKU[TAB]PACK</span>`;
+        commitBtn.disabled = true;
+        commitBtn.className = "px-4 py-2 bg-slate-200 text-slate-400 rounded-lg text-xs font-semibold cursor-not-allowed";
+        return;
+      }
+
+      previewArea.classList.remove('hidden');
+      previewArea.innerHTML = `
+        <div class="text-emerald-700 font-bold mb-1">Parsed ${pendingBulkParsed.length} records ready:</div>
+        ${pendingBulkParsed.slice(0, 10).map(p => `<div>${p.sku} &rarr; Pack ${p.pack}</div>`).join('')}
+        ${pendingBulkParsed.length > 10 ? `<div>...and ${pendingBulkParsed.length - 10} more items</div>` : ''}
+      `;
+
+      commitBtn.disabled = false;
+      commitBtn.className = "px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold cursor-pointer shadow-sm";
+    }
+
+    function commitBulkUpload() {
+      if (!pendingBulkParsed.length) return;
+
+      pendingBulkParsed.forEach(item => {
+        let match = masterSkus.find(m => m.sku === item.sku);
+        if (match) {
+          if (!match.packs.includes(item.pack)) match.packs.push(item.pack);
+        } else {
+          masterSkus.push({ sku: item.sku, packs: [item.pack] });
+        }
+      });
+
+      persist();
+      showToast(`Successfully added ${pendingBulkParsed.length} SKUs & Packs to Database`);
+      clearBulkText();
+      renderMasterSkuTable();
+    }
+
+    function clearBulkText() {
+      document.getElementById('bulk-text-input').value = '';
+      document.getElementById('bulk-preview-area').classList.add('hidden');
+      const commitBtn = document.getElementById('btn-bulk-commit');
+      commitBtn.disabled = true;
+      commitBtn.className = "px-4 py-2 bg-slate-200 text-slate-400 rounded-lg text-xs font-semibold cursor-not-allowed";
+      pendingBulkParsed = [];
+    }
+
+    function handleFileUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        document.getElementById('bulk-text-input').value = event.target.result;
+        switchBulkMode('paste');
+        previewBulkUpload();
+      };
+      reader.readAsText(file);
+    }
+
+    function deleteMasterSku(sku) {
+      masterSkus = masterSkus.filter(m => m.sku !== sku);
+      persist();
+      renderMasterSkuTable();
+      showToast(`Deleted SKU ${sku}`, false);
+    }
+
+    function renderMasterSkuTable() {
+      const query = (document.getElementById('sku-table-search').value || '').trim().toUpperCase();
+      const tbody = document.getElementById('master-skus-tbody');
+      const countSpan = document.getElementById('all-skus-count');
+
+      const filtered = masterSkus.filter(m => m.sku.includes(query));
+      countSpan.textContent = `${filtered.length} SKUs`;
+
+      if (!filtered.length) {
+        tbody.innerHTML = `<tr><td colspan="3" class="py-10 text-center text-slate-400 font-sans text-xs">No SKUs found matching query</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(item => `
+        <tr class="hover:bg-slate-50/80 transition-colors">
+          <td class="py-3.5 px-6 font-bold text-brand-700">${item.sku}</td>
+          <td class="py-3.5 px-6">
+            <div class="flex flex-wrap gap-1">
+              ${item.packs.map(p => `<span class="bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200 text-[11px] font-mono">${p}</span>`).join('')}
+            </div>
+          </td>
+          <td class="py-3.5 px-6 text-right font-sans">
+            <button onclick="deleteMasterSku('${item.sku}')" class="text-slate-500 hover:text-rose-600 text-xs px-2.5 py-1 rounded bg-slate-100 hover:bg-rose-50 border border-slate-200 transition-colors">
+              Delete
+            </button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    // ==================== CSV EXPORTERS ====================
+    function downloadCsvFile(content, filename) {
+      const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function exportStockCSV() {
+      if (!stockData.length) {
+        showToast("No stock records to export", false);
+        return;
+      }
+      const headers = ['SKU', 'PACK', 'BIN', 'QTY'];
+      const rows = stockData.map(s => [`"${s.sku}"`, `"${s.pack}"`, `"${s.bin}"`, s.qty]);
+      const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n');
+      downloadCsvFile(csv, `warehouse_stock_${Date.now()}.csv`);
+      showToast("Stock CSV exported successfully");
+    }
+
+    function exportLogCSV() {
+      if (!movementLogs.length) {
+        showToast("No movement log records to export", false);
+        return;
+      }
+      const headers = ['DATE', 'TIME', 'TYPE', 'SKU', 'PACK', 'BIN', 'QTY', 'NOTE'];
+      const rows = movementLogs.map(l => [
+        `"${l.date}"`,
+        `"${l.time}"`,
+        `"${l.type}"`,
+        `"${l.sku}"`,
+        `"${l.pack}"`,
+        `"${l.bin}"`,
+        `"${l.qty}"`,
+        `"${(l.note || '').replace(/"/g, '""')}"`
+      ]);
+      const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n');
+      downloadCsvFile(csv, `movement_logs_${Date.now()}.csv`);
+      showToast("Movement Logs CSV exported successfully");
+    }
+
+    // Initialize application
+    window.addEventListener('DOMContentLoaded', () => {
+      switchView('putaway');
+      updateMetricCounters();
+    });
+  </script>
+</body>
+</html>
