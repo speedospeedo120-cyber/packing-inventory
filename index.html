@@ -10,6 +10,8 @@
   <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
   <!-- Tone.js for warehouse audio cues -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
+  <!-- Supabase client (real shared database) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <script>
     tailwind.config = {
@@ -251,7 +253,7 @@
                   <input 
                     type="text" 
                     id="pa-bin-input"
-                    placeholder="e.g. S-01-01-A1" 
+                    placeholder="e.g. A-01-01" 
                     class="w-full bg-slate-50 border border-surface-border focus:border-brand-500 focus:bg-white rounded-lg pl-4 pr-10 py-3 text-sm text-slate-900 placeholder-slate-400 outline-none uppercase font-mono font-medium"
                     required
                   />
@@ -908,19 +910,138 @@
       { date: '2026-09-24', time: '16:04', type: 'PICK', sku: 'ES13', pack: '101', bin: 'A-01-01', qty: '-20', note: 'Order #4928' }
     ];
 
-    // Local Storage Hydration
-    let masterSkus = JSON.parse(localStorage.getItem('wms_light_skus')) || DEFAULT_MASTER_SKUS;
-    let stockData = JSON.parse(localStorage.getItem('wms_light_stock')) || DEFAULT_STOCK;
-    let movementLogs = JSON.parse(localStorage.getItem('wms_light_logs')) || DEFAULT_LOGS;
+    // ==================== SUPABASE CONFIG ====================
+    // Paste your project's values here (Supabase dashboard -> Project Settings -> API).
+    // The "anon public" key is safe to use in client-side code like this.
+    const SUPABASE_URL = 'YOUR_SUPABASE_PROJECT_URL';       // e.g. https://xxxxxxxx.supabase.co
+    const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+
+    const sb = (typeof supabase !== 'undefined' && SUPABASE_URL.startsWith('http'))
+      ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+      : null;
+
+    // ---- Shared-store hydration (local cache is just a fast-paint fallback) ----
+    function safeParse(raw) { try { return raw ? JSON.parse(raw) : null; } catch (e) { return null; } }
+
+    let masterSkus = safeParse(localStorage.getItem('wms_light_skus')) || DEFAULT_MASTER_SKUS;
+    let stockData = safeParse(localStorage.getItem('wms_light_stock')) || DEFAULT_STOCK;
+    let movementLogs = safeParse(localStorage.getItem('wms_light_logs')) || DEFAULT_LOGS;
     let isOnline = true;
     let tempPackChips = ['101', '102'];
     let pendingBulkParsed = [];
 
+    let pushInFlight = false;
+    let pushQueued = false;
+    let applyingRemote = false; // guards against re-pushing data we just received
+
+    function cacheLocally() {
+      try {
+        localStorage.setItem('wms_light_skus', JSON.stringify(masterSkus));
+        localStorage.setItem('wms_light_stock', JSON.stringify(stockData));
+        localStorage.setItem('wms_light_logs', JSON.stringify(movementLogs));
+      } catch (e) { /* storage unavailable on this device, ignore */ }
+    }
+
+    // Every write goes through here: save on this device immediately, then
+    // push to Supabase (if reachable) so every other device gets it live.
     function persist() {
-      localStorage.setItem('wms_light_skus', JSON.stringify(masterSkus));
-      localStorage.setItem('wms_light_stock', JSON.stringify(stockData));
-      localStorage.setItem('wms_light_logs', JSON.stringify(movementLogs));
+      if (movementLogs.length > 500) movementLogs = movementLogs.slice(0, 500);
+      cacheLocally();
       updateMetricCounters();
+      if (!applyingRemote) pushToSharedStore();
+    }
+
+    async function pushToSharedStore() {
+      if (!sb) return; // Supabase not configured -> local-only mode
+      if (pushInFlight) { pushQueued = true; return; }
+      pushInFlight = true;
+      try {
+        const { error } = await sb.from('wms_state')
+          .update({ state: { masterSkus, stockData, movementLogs }, updated_at: new Date().toISOString() })
+          .eq('id', 1);
+        if (error) throw error;
+        setSyncStatus('synced');
+      } catch (e) {
+        setSyncStatus('error');
+        const detail = (e && (e.message || e.details || e.hint)) || 'unknown error';
+        showToast('Saved on this device, but could not sync to others: ' + detail, false);
+        console.error('Supabase write error:', e);
+      } finally {
+        pushInFlight = false;
+        if (pushQueued) { pushQueued = false; pushToSharedStore(); }
+      }
+    }
+
+    function applyRemoteState(state) {
+      if (!state) return;
+      applyingRemote = true;
+      if (Array.isArray(state.masterSkus)) masterSkus = state.masterSkus;
+      if (Array.isArray(state.stockData)) stockData = state.stockData;
+      if (Array.isArray(state.movementLogs)) movementLogs = state.movementLogs;
+      cacheLocally();
+      refreshActiveView();
+      applyingRemote = false;
+    }
+
+    // Re-render whichever screen is open when fresh data arrives from another device.
+    function refreshActiveView() {
+      const panels = ['stockview', 'movementlog', 'skumaster'];
+      const visible = panels.find(p => {
+        const el = document.getElementById(`view-${p}`);
+        return el && !el.classList.contains('hidden');
+      });
+      if (visible === 'stockview') renderStockTable();
+      if (visible === 'movementlog') renderMovementLogTable();
+      if (visible === 'skumaster') { renderPackChips(); renderMasterSkuTable(); }
+      updateMetricCounters();
+    }
+
+    function setSyncStatus(status) {
+      const dot = document.getElementById('status-indicator-dot');
+      const text = document.getElementById('status-indicator-text');
+      const map = {
+        connecting: { cls: 'w-2.5 h-2.5 rounded-full bg-slate-400 animate-pulse', label: 'Connecting…' },
+        synced:     { cls: 'w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]', label: 'Synced' },
+        local:      { cls: 'w-2.5 h-2.5 rounded-full bg-amber-500 shadow-[0_0_8px_#f59e0b]', label: 'Local only' },
+        error:      { cls: 'w-2.5 h-2.5 rounded-full bg-rose-500 shadow-[0_0_8px_#f43f5e]', label: 'Sync error' }
+      };
+      const m = map[status] || map.local;
+      if (dot) dot.className = m.cls;
+      if (text) text.textContent = m.label;
+    }
+
+    async function initSync() {
+      setSyncStatus('connecting');
+      if (!sb) {
+        setSyncStatus('local');
+        showToast("Supabase isn't configured yet — add SUPABASE_URL and SUPABASE_ANON_KEY at the top of the file", false);
+        return;
+      }
+
+      try {
+        const { data, error } = await sb.from('wms_state').select('state').eq('id', 1).maybeSingle();
+        if (error) throw error;
+        if (data && data.state) {
+          applyRemoteState(data.state);
+        } else {
+          // Table is empty (setup SQL didn't run, or row was deleted) -> seed it from this device.
+          await sb.from('wms_state').upsert({ id: 1, state: { masterSkus, stockData, movementLogs } });
+        }
+        setSyncStatus('synced');
+      } catch (e) {
+        setSyncStatus('error');
+        const detail = (e && (e.message || e.details || e.hint)) || 'unknown error';
+        showToast('Could not reach Supabase: ' + detail, false);
+        console.error('Supabase init error:', e);
+        return;
+      }
+
+      sb.channel('wms-state-changes')
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'wms_state', filter: 'id=eq.1' }, (payload) => {
+          applyRemoteState(payload.new && payload.new.state);
+          setSyncStatus('synced');
+        })
+        .subscribe();
     }
 
     // Audio cue generator
@@ -959,17 +1080,11 @@
 
     // Online / Offline Switch
     function toggleOnlineOffline() {
-      isOnline = !isOnline;
-      const dot = document.getElementById('status-indicator-dot');
-      const text = document.getElementById('status-indicator-text');
-      if (isOnline) {
-        dot.className = "w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]";
-        text.textContent = "Online";
-        showToast("Connected to central warehouse gateway");
+      if (sb) {
+        showToast('Connected — changes sync live to every device using this Supabase project');
       } else {
-        dot.className = "w-2.5 h-2.5 rounded-full bg-rose-500 shadow-[0_0_8px_#f43f5e]";
-        text.textContent = "Offline";
-        showToast("Operating in Local Offline Cache mode", false);
+        showToast("Not connected. Retrying…", false);
+        initSync();
       }
     }
 
@@ -1696,6 +1811,7 @@
     window.addEventListener('DOMContentLoaded', () => {
       switchView('putaway');
       updateMetricCounters();
+      initSync();
     });
   </script>
 </body>
