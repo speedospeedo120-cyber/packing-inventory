@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+`<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -913,8 +913,8 @@
     // ==================== SUPABASE CONFIG ====================
     // Paste your project's values here (Supabase dashboard -> Project Settings -> API).
     // The "anon public" key is safe to use in client-side code like this.
-    const SUPABASE_URL = 'YOUR_SUPABASE_PROJECT_URL';       // e.g. https://xxxxxxxx.supabase.co
-    const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+    const SUPABASE_URL = 'https://blroesvlolzoxqamgcdo.supabase.co/rest/v1/';       // e.g. https://xxxxxxxx.supabase.co
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJscm9lc3Zsb2x6b3hxYW1nY2RvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAzMzAxMzQsImV4cCI6MjEwNTkwNjEzNH0.zAP9OX3YfrSVK5EYlFQV2689548cRU57jN_Wybg06mI';
 
     const sb = (typeof supabase !== 'undefined' && SUPABASE_URL.startsWith('http'))
       ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
